@@ -1,0 +1,129 @@
+#Soil Compositions of Physical and Chemical Characteristics
+
+install.packages("dplyr")
+library(dplyr)
+#install.libaray("xlsx")
+#library(xlsx)
+#data <- read.xlsx("Soils.xlsx",48)
+library("readxl")
+data<-read_excel("Soils.xlsx")
+data <- na.omit(data)
+View(data)
+data1 <- data %>% select(-Group,-X__1,-Block,-Gp)
+data2 <- data %>% select(-Contour,-Depth,-Group,-X__1,-Block,-Gp)
+#data1$Contour <-as.character(data$Contour)
+#data1$Depth<-as.character(data$Depth)
+
+
+View(data1)
+summary(data1)
+str(data1)
+
+View(data2)
+str(data2)
+
+
+#tree 
+install.packages("tree")
+library(tree)
+tree.fit<- tree(log(data1$Conduc)~ data1$pH + data1$Density , data=data1)
+summary(tree.fit)
+plot(tree.fit)
+text(tree.fit)
+
+
+tree.text<-snip.tree(tree.fit,nodes=c(2,3))
+plot(tree.text)
+text(tree.text)
+
+tree.text1<- prune.tree(tree.text)
+plot(tree.text1)
+text(tree.text1)
+
+# Using naive Bayes on the weather data
+library(e1071)
+nb.fit<-naiveBayes(Contour ~., data=data1)
+nb.predict= predict(nb.fit,newdata=data1)
+table(pred=nb.predict,true=data1$Contour)
+
+#randomForest
+install.packages("randomForest")
+library(randomForest)
+library(MASS)
+library(tree)
+
+set.seed(1)
+train <- sample(1:nrow(data2), nrow(data2)/2)
+tree.data2 <- tree(data2$Conduc~.,data2,subset=train)
+plot(tree.data2)
+text(tree.data2)
+
+cv.data2 <- cv.tree(tree.data2)
+plot(cv.data2$size,cv.data2$dev,type='b')
+
+prune.data2 <- prune.tree(tree.data2,best=4)
+xplot(prune.data2)
+text(prune.data2)
+
+yhat<-predict(tree.data2, newdata =  data2[-train, ])
+data2.test = data2[-train, "Conduc"]
+plot(yhat,data2.test)
+abline(0,1)
+mean((yhat-data2.test)^2)
+
+bag.data2 <- randomForest(data2$Conduc~.,data = data2, subset = train, 
+                          mtry=4, importance=TRUE)
+
+yhat.bag = predict(bag.data2, newdata= data2[-train, ])
+plot(yhat.bag,data2.test)
+abline(0,1)
+mean((yhat.bag-data2.test)^2)
+
+set.seed(1)
+rf.data2 <- randomForest(data2$Conduc~.,data=data2, subset=train, mtry=5,importance=TRUE)
+yhat.rf = predict(rf.data2, newdata= data2[-train, ])
+mean((yhat.rf - data2.test)^2)
+
+
+summary(yhat.rf)
+importance(rf.data2)
+temp<-importance(rf.data2)
+barplot(temp[,1])
+
+
+importance(rf.data2)
+lm.data2 <- lm(data2$Conduc~., data=data2, subset=train)
+summary(lm.data2)
+
+
+
+best.data2 <- step(lm.data2,direction="forward")
+summary(best.data2)
+
+#SVM model
+install.packages("e1071")
+library(e1071)
+data1$Contour <- as.factor(data1$Contour)
+data1$Depth <- as.factor(data1$Depth)
+str(data1)
+dim(data1)
+
+svm.model <- svm(Contour ~ pH+ Density,data=data1,kernel="linear")
+plot(data1$pH, data1$Density, col=as.integer(data2[,5]),
+     pch=c("o","+")[1:nrow(data2) %in% svm.model$index +1], cex=2,
+xlab = "pH", ylab= "Density")
+
+plot(svm.model,data1,Density ~ pH,
+     slice = list(Density = 1, pH=4))
+svm.pred<- predict(svm.model,data1[,-2])
+table(pred=svm.pred, true=data1[,2])
+
+
+svm.model<-svm(data1$Contour~.,data=data1,kernel='polynomial',degree=8,gamma=0.1,coef=0.1)
+plot(svm.model,data1,pH ~Density,
+     slice=list(Nitrogen.N. = 3 ,Phosphorus.P. = 1))
+
+svm.model <- svm(Contour~ pH + Density+Conductivity, data = data1, kernel = 'polynomial', degree=15, gamma=0.1, coef0=1)
+plot(svm.model, data1, pH ~Density, 
+     slice=list(Nitrogen.N. = 2 ,Phosphorus.P. = 0.5))
+
